@@ -4,6 +4,7 @@ from pylab import *
 from HzCosmoBase import *
 
 mock_sne = loadtxt('wfirst_LCDM.txt')
+# mock_sne = loadtxt('wfirst_LCDM_sigma_int_0.1.txt')
 
 sne_z = mock_sne[:,0]
 sne_err = mock_sne[:,2]
@@ -38,23 +39,21 @@ Hz_cov = full_cov[0:(dim-1),0:(dim-1)]
 # matshow(Hz_cov)
 # colorbar()
 
-# semilogy(z_interp,diag(Hz_cov)**0.5,'-o',label=r'float rMB')
-# semilogy(z_interp,diag(full_covxx)**0.5,'--s',label=r'fix rMB')
-# legend(loc='best',frameon=False)
+semilogy(z_interp,diag(Hz_cov)**0.5,'-o',label=r'float rMB')
+semilogy(z_interp,diag(full_covxx)**0.5,'--s',label=r'fix rMB')
+legend(loc='best',frameon=False)
 
-evals,evecs = eig(full_covxx)
-
-IDs = argsort(evals)
-
-subplot(1,2,1)
-for i in range(5):
-    plot(evecs[:,IDs[i]],'-.',label=r'sigma^2='+str(evals[IDs[i]]))
-legend()
-
-subplot(1,2,2)
-for i in range(5,10):
-    plot(evecs[:,IDs[i]],'-.',label=r'sigma^2='+str(evals[IDs[i]]))
-
-legend()
+# evals,evecs = eig(full_covxx)
+# IDs = argsort(evals)
+#
+# subplot(1,2,1)
+# for i in range(5):
+#     plot(evecs[:,IDs[i]],'-.',label=r'sigma^2='+str(evals[IDs[i]]))
+# legend()
+#
+# subplot(1,2,2)
+# for i in range(5,10):
+#     plot(evecs[:,IDs[i]],'-.',label=r'sigma^2='+str(evals[IDs[i]]))
+# legend()
 
 show()
