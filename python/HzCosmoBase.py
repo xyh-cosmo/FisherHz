@@ -69,17 +69,12 @@ class HzCosmo:
 			self.E_interp[E_idx] += dE
 			self.interplnE= interp1d(self.z_interp,np.log(self.E_interp),kind='linear')
 
-		self.UpdateHzCosmo()
-		self.E_interp[E_idx] = self.E_fid[E_idx] # reset to the fiducial value
-
-
-	def ResetEfun(self,E_idx,dE=0.01):
+		self.UpdateHzCosmo() # update luminosity distance and distance modulus
 		self.E_interp[E_idx] = self.E_fid[E_idx] # reset to the fiducial value
 
 	def UpdateHzCosmo(self):
 		def Einv(z):
 			return 1./np.exp(self.interplnE(z))
-
 
 		self.dL[0] = romberg(Einv,0.,self.dL_z[0],divmax=50)
 		self.mB[0] = 5.0*np.log10((1.0+self.dL_z[0])*self.dL[0]) + self.rMB
@@ -94,7 +89,7 @@ class HzCosmo:
 
 	def ComputedmB(self):
 		# compute dmB/dEi
-		dE = 0.01
+		dE = 0.005
 		for i in range(1,len(self.z_interp)):
 			UppermB = []
 			LowermB = []
@@ -102,18 +97,12 @@ class HzCosmo:
 			for j in range(len(self.mB)):
 				UppermB.append(self.mB[j])
 			UppermB = np.array(UppermB)
-			# print 'UppermB = ',UppermB[0:10]
 
 			self.UpdateEfun(i,-1*dE)
 			for j in range(len(self.mB)):
 				LowermB.append(self.mB[j])
-			# print 'UppermB = ',UppermB[0:10]
-			# print 'LowermB = ',LowermB[0:10]
+
 			dmB = 0.5*(UppermB-LowermB)/dE
-			# print 'dmB = ',dmB
-			# for j in range(len(UppermB)):
-				# print 'UppermB - LowermB = %10.5e'%(UppermB[j]-LowermB[j])
-			# sys.exit(0)
 			self.dmBdE.append(interp1d(self.dL_z,dmB))
 
 		# compute dmB/drMB
@@ -136,11 +125,8 @@ class HzCosmo:
 
 		plt.subplot(2,2,3)
 		for i in range(len(self.z_interp)-1):
-			print 'I = ',i
 			plt.plot(self.dL_z,self.dmBdE[i](self.dL_z),label=r'E'+str(i+1))
 		plt.legend(ncol=3)
-
-
 
 		plt.show()
 
@@ -149,8 +135,8 @@ class HzCosmo:
 
 # TEST part
 
-z_interp = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5]
-HC = HzCosmo(z_interp=z_interp,cosmo_array_size=100)
-HC.ComputedmB()
-
-HC.run_test()
+# z_interp = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5]
+# HC = HzCosmo(z_interp=z_interp,cosmo_array_size=100)
+# HC.ComputedmB()
+#
+# HC.run_test()
