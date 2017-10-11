@@ -5,12 +5,12 @@ from scipy.interpolate import interp1d
 from scipy.integrate import quad, romberg
 import matplotlib.pylab as plt
 
-class HzCosmo:
+class LogHzCosmo:
 	"""
 	Simple cosmology module.  Interplolate over {zi,Ei} to compute luminosity distance.
 	"""
 	def __init__(self,z_interp=[],zmax=1.5,OmegaM=0.3,OmegaK=0.0,H0=70.0,
-				cosmo_array_size=100,dL_zmin=0.01,kind='linear',dE=0.01):
+				cosmo_array_size=100,dL_zmin=0.01,kind='linear',dlogE=0.01):
 		self.clight = 2.9979e5	# speed of light, in unit of km/s
 		self.Om	= OmegaM
 		self.Ok	= OmegaK
@@ -24,18 +24,18 @@ class HzCosmo:
 		self.dL_z = np.linspace(dL_zmin,zmax,self.array_size)
 		self.dL = np.zeros(self.array_size)
 		self.mB = np.zeros(self.array_size)
-		self.dmBdE = []  # store derivatives of mB wrt to Ei & rMB
+		self.dmBdlogE = []  # store derivatives of mB wrt to logEi & rMB
 		self.dmBdrMB = None
 
 		self.kind=kind
-		self.dE=dE
+		self.dlogE=dlogE
 
 		if len(z_interp) < 5:
 			print('length of z_interp is too small, pls increase it!')
 			sys.exit(0)
 
-		if max(z_interp) != zmax:
-			print('max(z_interp) does not match zmax = %g'%zmax)
+		if abs( max(z_interp) - zmax ) > 1E-8:
+			print('max(z_interp) does not match zmax = %g, while max(z_interp) = %g'%(zmax,max(z_interp)))
 			sys.exit(0)
 
 		z_size = len(z_interp)
@@ -52,7 +52,9 @@ class HzCosmo:
 
 		self.E_fid = self.Efun_fid(self.z_interp)
 		self.E_interp = self.E_fid
-		self.interplnE= interp1d(self.z_interp,np.log(self.E_interp),kind=self.kind)
+		self.logE_fid = np.log(self.E_fid)
+		self.logE_interp = self.logE_fid
+		self.interplnE= interp1d(self.z_interp,self.logE_fid,kind=self.kind)
 
 		self.UpdateHzCosmo()
 		self.PrintParams()
@@ -68,24 +70,22 @@ class HzCosmo:
 		print('MB     = %g'%self.MB)
 		print('rMB    = %g'%self.rMB)
 
-	def UpdateEfun(self,E_idx,dE):
+	def UpdateEfun(self,E_idx,dlogE):
 		if E_idx >=1 and E_idx < len(self.z_interp):
-			print '--> updating %2d -th Ei'%(E_idx)
-			self.E_interp[E_idx] += dE
-			self.interplnE= interp1d(self.z_interp,np.log(self.E_interp),kind=self.kind)
+			self.logE_interp[E_idx] += dlogE
+			self.interplnE= interp1d(self.z_interp,self.logE_interp,kind=self.kind)
 
 		self.UpdateHzCosmo() # update luminosity distance and distance modulus
-		self.E_interp[E_idx] = self.E_fid[E_idx] # reset to the fiducial value
+		self.logE_interp[E_idx] = self.logE_fid[E_idx] # reset to the fiducial value
 
 	def UpdateHzCosmo(self):
 		def Einv(z):
 			return 1./np.exp(self.interplnE(z))
 
-		self.dL[0] = romberg(Einv,0.,self.dL_z[0],divmax=50,tol=1.48e-010, rtol=1.48e-010)
+		self.dL[0] = romberg(Einv,0.,self.dL_z[0],divmax=50)
 		self.mB[0] = 5.0*np.log10((1.0+self.dL_z[0])*self.dL[0]) + self.rMB
 		for i in range(1,len(self.dL_z)):
-			# self.dL[i] = quad(Einv,0.,self.dL_z[i])[0]
-			self.dL[i] = self.dL[i-1] + romberg(Einv,self.dL_z[i-1],self.dL_z[i],divmax=50,tol=1.48e-010, rtol=1.48e-010)
+			self.dL[i] = self.dL[i-1] + romberg(Einv,self.dL_z[i-1],self.dL_z[i],divmax=50)
 			self.mB[i] = 5.0*np.log10((1.0+self.dL_z[i])*self.dL[i]) + self.rMB
 
 
@@ -97,50 +97,18 @@ class HzCosmo:
 		for i in range(1,len(self.z_interp)):
 			UppermB = []
 			LowermB = []
-			self.UpdateEfun(i,dE=self.dE)
+			self.UpdateEfun(i,dlogE=self.dlogE)
 			for j in range(len(self.mB)):
 				UppermB.append(self.mB[j])
 			UppermB = np.array(UppermB)
 
-			self.UpdateEfun(i,dE=-1*self.dE)
+			self.UpdateEfun(i,dlogE=-1*self.dlogE)
 			for j in range(len(self.mB)):
 				LowermB.append(self.mB[j])
 
-			dmB = 0.5*(UppermB-LowermB)/self.dE
-			self.dmBdE.append(interp1d(self.dL_z,dmB,kind=self.kind))
+			dmB = 0.5*(UppermB-LowermB)/self.dlogE
+			self.dmBdlogE.append(interp1d(self.dL_z,dmB))
 
 		# compute dmB/drMB
 		self.dmBdrMB = np.ones(self.array_size)
 
-	def run_test(self):
-		# zxx = np.linspace(0.,max(self.z_interp),20)
-		# plt.plot(self.z_interp,np.log(self.E_interp),'-o')
-		# plt.plot(zxx,self.interplnE(zxx),'-s')
-
-		plt.figure(figsize=(10,8))
-
-		plt.subplot(2,2,1)
-		plt.plot(self.z_interp,self.E_fid,'-ro',label=r'test E(z)')
-		plt.legend()
-
-		plt.subplot(2,2,2)
-		plt.plot(self.dL_z,self.mB,label=r'apparent magnitude')
-		plt.legend()
-
-		plt.subplot(2,2,3)
-		for i in range(len(self.z_interp)-1):
-			plt.plot(self.dL_z,self.dmBdE[i](self.dL_z),label=r'E'+str(i+1))
-		plt.legend(ncol=3)
-
-		plt.show()
-
-	# def update_H(self,
-
-
-# TEST part
-
-# z_interp = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5]
-# HC = HzCosmo(z_interp=z_interp,cosmo_array_size=100)
-# HC.ComputedmB()
-#
-# HC.run_test()
